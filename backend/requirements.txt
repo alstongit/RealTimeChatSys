@@ -1,0 +1,4 @@
+fastapi
+python-socketio[asgi]
+uvicorn
+httpx

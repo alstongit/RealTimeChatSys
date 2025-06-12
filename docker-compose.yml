@@ -1,0 +1,61 @@
+version: '3.8'
+
+# This network allows all services below to talk to each other by name.
+networks:
+  chatbot-net:
+    driver: bridge
+
+# This volume will save your downloaded Ollama models so you don't
+# have to re-download them every time you restart the containers.
+volumes:
+  ollama-data:
+
+services:
+  # The Backend Service (FastAPI + Socket.IO)
+  backend:
+    build: ./backend
+    container_name: chatbot-backend
+    ports:
+      # Maps your local machine's port 8000 to the container's port 8000.
+      - "8000:8000"
+    environment:
+      # CRITICAL: This URL tells the backend how to find the Ollama service
+      # on the Docker network. 'ollama' is the service name below.
+      - OLLAMA_API_URL=http://ollama:11434/api/generate
+    networks:
+      # Connect this service to our shared network.
+      - chatbot-net
+    depends_on:
+      # Tell Docker to wait until the 'ollama' service is started
+      # before starting the 'backend' service.
+      - ollama
+
+  # The Frontend Service (Streamlit)
+  frontend:
+    build: ./frontend
+    container_name: chatbot-frontend
+    ports:
+      # Maps your local machine's port 8501 to the container's port 8501.
+      - "8501:8501"
+    environment:
+      # CRITICAL: This URL tells the frontend's socket client how to find
+      # the backend service on the Docker network.
+      - BACKEND_URL=http://backend:8000
+    networks:
+      # Connect this service to our shared network.
+      - chatbot-net
+    depends_on:
+      # Wait for the backend to be ready before starting the frontend.
+      - backend
+
+  # The Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    # Note: No need to expose port 11434 to the host machine unless you
+    # want to debug it directly. The backend can reach it over the private network.
+    volumes:
+      # Persist models in the named volume.
+      - ollama-data:/root/.ollama
+    networks:
+      - chatbot-net
